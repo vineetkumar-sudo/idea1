@@ -1,3 +1,14 @@
+# CADC+ weather-robustness study
+
+**Environment setup:** see [SETUP.md](SETUP.md) — a verified runbook that rebuilds this
+project from a bare clone. `bash scripts/setup_env.sh` automates the environment;
+`python scripts/fetch_cadc.py --parts lidar` fetches the data.
+
+**Open blocker:** the CADC+ snowy↔clear pairing table is unpublished — see
+[EMAIL_DRAFT.md](EMAIL_DRAFT.md) and Appendix C of SETUP.md.
+
+---
+
 ## Why CADC+
 
 So basically our goal is to validate is any of the methods/techniques proposed on these papers actually help in snow, so currently when they evaluated these techniques they were evaluated in different location in snow and without snow conditions or the simulated snow/no snow conditions to keep the location same. But in case one, we don't know if the gains or improvments we are seeing are either because of location/time/weather change or just the snow/no snow thing, there are too many variables moving. Meanwhile in second kind of evaluations the location is kept fixed but the simulated conditions are not 100% accurate as they would have been naturally, for example the synthetic disturbance that should be there in lidar data while snowing/fog is there, but what about changes on the ground?? accumulated snow like vehicles covered in snow and are not visible clearly etc. Meanwhile, CADC+ try to solve this problem, it contains natural photage of same location on different days around similar time or closes conditions on a snow and no snow day, so only one variable (close to one) is changing, so the evaluations will be more honest and we might be able to narrow down if the gains are actually because of the techniques or just artifacts because of other variables changing.

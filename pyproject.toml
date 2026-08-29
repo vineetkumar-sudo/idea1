@@ -1,9 +1,9 @@
 [project]
 name = "idea1"
 version = "0.1.0"
-description = "Add your description here"
+description = "Weather-robustness training strategies for LiDAR 3D detection, evaluated on CADC+"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "pip>=26.2.1",
 ]
