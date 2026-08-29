@@ -1,56 +1,53 @@
-import torch
-from pcdet.datasets.cadc.cadc_dataset import CadcDataset
-from pcdet.config import cfg, cfg_from_yaml_file
+"""Gate 200 smoke test: load a CADC frame through the full OpenPCDet pipeline."""
+import pickle
+import yaml
+import numpy as np
 from pathlib import Path
-import os
+from easydict import EasyDict
 
-def test_loader():
-    config_path = Path("OpenPCDet/tools/cfgs/dataset_configs/cadc_dataset.yaml")
-    if not config_path.exists():
-        print(f"Error: Config file not found at {config_path}")
-        return
+from pcdet.datasets.cadc.cadc_dataset import CadcDataset
 
-    cfg_from_yaml_file(config_path, cfg)
-    
-    dataset_cfg = cfg 
-    dataset_cfg.DATA_PATH = os.path.abspath("data/cadc")
-    
-    # Disable augmentation and GT sampling for the smoke test
-    dataset_cfg.DATA_AUGMENTOR.DISABLE_AUG_LIST = ['gt_sampling', 'random_world_flip', 'random_world_rotation', 'random_world_scaling']
-    
-    print(f"Data Path: {dataset_cfg.DATA_PATH}")
-    
-    print("Initializing CADC Dataset (Eval Mode)...")
-    try:
-        # Set training=False to avoid looking for training-specific .pkl files
-        cadc_dataset = CadcDataset(
-            dataset_cfg=dataset_cfg,
-            class_names=['Car'],
-            training=False, 
-            root_path=Path(dataset_cfg.DATA_PATH)
-        )
-        
-        # If it still asks for cadc_infos_val.pkl, we may need to 
-        # manually mock the sample_id_list for this test.
-        if not hasattr(cadc_dataset, 'sample_id_list') or len(cadc_dataset.sample_id_list) == 0:
-            print("Manually setting sample ID for smoke test...")
-            cadc_dataset.sample_id_list = ['2019_02_27/0002/000000'] # Adjust to your actual file name
-        
-        print(f"Dataset length: {len(cadc_dataset)}")
-        
-        if len(cadc_dataset) > 0:
-            # Try loading the first frame
-            data_dict = cadc_dataset[0]
-            print("✅ Successfully loaded first frame!")
-            print(f"Points shape: {data_dict['points'].shape}")
-            if 'gt_boxes' in data_dict:
-                print(f"GT Boxes shape: {data_dict['gt_boxes'].shape}")
-        else:
-            print("❌ Dataset is empty.")
-            
-    except Exception as e:
-        print(f"❌ Failed: {e}")
-        print("\nTip: If it complains about 'cadc_infos_val.pkl', we need to run the data prep script.")
+ROOT = Path(__file__).resolve().parent
+DATA = ROOT / 'data' / 'cadc'
+CFG = ROOT / 'OpenPCDet' / 'tools' / 'cfgs' / 'dataset_configs' / 'cadc_dataset.yaml'
 
-if __name__ == "__main__":
-    test_loader()
+ALL_CLASSES = ['Car', 'Pedestrian', 'Pickup_Truck']
+
+
+def classes_for(training):
+    """gt_sampling requires every class name to exist in cadc_dbinfos_train.pkl.
+    The smoke-test subset (2019_02_27/0002) has no Pedestrian instances, so in
+    training mode restrict to the classes the gt database actually contains."""
+    if not training:
+        return ALL_CLASSES
+    db = pickle.load(open(DATA / 'cadc_dbinfos_train.pkl', 'rb'))
+    return [c for c in ALL_CLASSES if c in db]
+
+
+def report(ds, classes, mode):
+    print(f'\n=== {mode}  (classes: {classes}) ===')
+    print(f'Dataset length   : {len(ds)} frames')
+    d = ds[0]
+    pts = d['points']
+    print(f"frame id         : {'/'.join(d['sample_idx'])}")
+    print(f"points           : {pts.shape}  "
+          f"x[{pts[:, 0].min():.1f},{pts[:, 0].max():.1f}] "
+          f"z[{pts[:, 2].min():.1f},{pts[:, 2].max():.1f}] "
+          f"intensity[{pts[:, 3].min():.2f},{pts[:, 3].max():.2f}]")
+    print(f"voxels           : {d['voxels'].shape}")
+    print(f"voxel_coords     : {d['voxel_coords'].shape}")
+    print(f"voxel_num_points : {d['voxel_num_points'].shape}")
+    gt = d['gt_boxes']
+    names = [classes[int(c) - 1] for c in gt[:, 7]]
+    uniq, cnt = np.unique(names, return_counts=True)
+    print(f"gt_boxes         : {gt.shape}  {dict(zip(uniq, cnt.tolist()))}")
+
+
+if __name__ == '__main__':
+    for training in (False, True):
+        classes = classes_for(training)
+        cfg = EasyDict(yaml.safe_load(open(CFG)))
+        cfg.DATA_PATH = str(DATA)
+        ds = CadcDataset(dataset_cfg=cfg, class_names=classes,
+                         training=training, root_path=DATA)
+        report(ds, classes, 'TRAIN' if training else 'VAL')

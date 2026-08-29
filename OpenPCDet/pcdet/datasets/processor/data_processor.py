@@ -42,15 +42,7 @@ class DataProcessor(object):
 
     def transform_points_to_voxels(self, data_dict=None, config=None, voxel_generator=None):
         if data_dict is None:
-            try:
-                from spconv.utils import VoxelGeneratorV2 as VoxelGenerator
-            except:
-                try:
-                    from spconv.utils import VoxelGenerator
-                except:
-                    from spconv.pytorch.utils import VoxelGeneratorV2 as VoxelGenerator
-
-            voxel_generator = VoxelGenerator(
+            voxel_generator = VoxelGeneratorWrapper(
                 voxel_size=config.VOXEL_SIZE,
                 point_cloud_range=self.point_cloud_range,
                 max_num_points=config.MAX_POINTS_PER_VOXEL,
@@ -125,3 +117,35 @@ class DataProcessor(object):
             data_dict = cur_processor(data_dict=data_dict)
 
         return data_dict
+
+
+class VoxelGeneratorWrapper(object):
+    """Compatibility shim: spconv 1.x exposed VoxelGeneratorV2, spconv 2.x replaced it
+    with Point2VoxelCPU3d. The underlying generator is built lazily on the first call so
+    that num_point_features can be read off the actual points."""
+
+    def __init__(self, voxel_size, point_cloud_range, max_num_points, max_voxels):
+        self.voxel_size = list(voxel_size)
+        self.point_cloud_range = [float(x) for x in point_cloud_range]
+        self.max_num_points = max_num_points
+        self.max_voxels = max_voxels
+        self._gen = None
+        self._num_features = None
+
+    def _build(self, num_point_features):
+        from spconv.utils import Point2VoxelCPU3d
+        self._num_features = num_point_features
+        self._gen = Point2VoxelCPU3d(
+            vsize_xyz=self.voxel_size,
+            coors_range_xyz=self.point_cloud_range,
+            num_point_features=num_point_features,
+            max_num_points_per_voxel=self.max_num_points,
+            max_num_voxels=self.max_voxels
+        )
+
+    def generate(self, points):
+        from cumm import tensorview as tv
+        if self._gen is None or self._num_features != points.shape[1]:
+            self._build(points.shape[1])
+        voxels, coords, num_points = self._gen.point_to_voxel(tv.from_numpy(points))
+        return voxels.numpy(), coords.numpy(), num_points.numpy()
