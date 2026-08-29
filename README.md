@@ -1,11 +1,13 @@
 # CADC+ weather-robustness study
 
-**Environment setup:** see [SETUP.md](SETUP.md) — a verified runbook that rebuilds this
-project from a bare clone. `bash scripts/setup_env.sh` automates the environment;
-`python scripts/fetch_cadc.py --parts lidar` fetches the data.
+**Environment setup:** `bash scripts/setup_env.sh` builds the conda environment and
+OpenPCDet; `python scripts/fetch_cadc.py --parts lidar` fetches the data.
 
-**Open blocker:** the CADC+ snowy↔clear pairing table is unpublished — see
-[EMAIL_DRAFT.md](EMAIL_DRAFT.md) and Appendix C of SETUP.md.
+**Open blocker:** the CADC+ snowy↔clear pairing table is unpublished — absent from the
+file servers, `3d_ann.json`, `cadc_devkit`, the IV 2025 paper and the MASc thesis.
+Requested from the authors. Per thesis §4.5 only 53 of 74 pairs are genuine same-road
+spatial matches; the other 21 were hand-picked on scene similarity, which bears directly
+on the Level 2 axis.
 
 ---
 

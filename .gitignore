@@ -7,3 +7,6 @@ __pycache__/
 data/**
 !data/**/
 !data/cadc/ImageSets/*.txt
+
+# Local-only: setup runbook stays on this machine
+SETUP.md
