@@ -80,8 +80,21 @@ def complete(dest, parts):
     """Frame count under data/ must match timestamps.txt."""
     if parts == 'gps':
         return _count_ok(dest / 'timestamps.txt', dest / 'data', '.txt')
+    ann = dest / '3d_ann.json'
+    if not ann.exists():
+        return False
     lp = dest / 'labeled' / 'lidar_points'
     if not _count_ok(lp / 'timestamps.txt', lp / 'data', '.bin'):
+        return False
+    # Cross-check against the annotations. A self-consistent but *misattributed*
+    # sequence (see the shared-temp-dir race fixed below) passes the count check alone;
+    # it will not match the frame count of its own 3d_ann.json.
+    try:
+        import json
+        n_ann = len(json.loads(ann.read_text()))
+    except Exception:
+        return False
+    if n_ann != len(list((lp / 'data').glob('*.bin'))):
         return False
     if parts == 'full':
         return (dest / 'labeled' / 'image_00' / 'data').is_dir()
@@ -153,6 +166,23 @@ def fetch_tar_zst(url, dest, parts):
     return complete(dest, parts)
 
 
+def fetch_ann(base, date, seq, dest):
+    """3d_ann.json holds the ground-truth cuboids and is a separate file next to the
+    archive -- it is NOT inside labeled.zip / labeled.tar.zst. A few MB per sequence."""
+    out = dest / '3d_ann.json'
+    if out.exists() and out.stat().st_size > 0:
+        return True
+    dest.mkdir(parents=True, exist_ok=True)
+    url = f'{base}{date}/{seq}/3d_ann.json'
+    tmp = out.with_suffix('.json.part')
+    r = subprocess.run(['curl', '-sf', '--max-time', '300', '-o', str(tmp), url])
+    if r.returncode == 0 and tmp.exists() and tmp.stat().st_size > 0:
+        tmp.rename(out)
+        return True
+    tmp.unlink(missing_ok=True)
+    return False
+
+
 def fetch_calib(half, base, calib_arc, date, parts):
     if parts == 'gps':
         return 'skip'
@@ -181,6 +211,8 @@ def fetch_calib(half, base, calib_arc, date, parts):
 def one(half, base, archive, date, seq, parts):
     dest = (ROOT / 'data' / 'gps' / half / date / seq if parts == 'gps'
             else ROOT / 'data' / half / date / seq)
+    if parts != 'gps':
+        fetch_ann(base, date, seq, dest)     # cheap and idempotent; archive-independent
     if complete(dest, parts):
         return half, date, seq, 'skip'
     dest.mkdir(parents=True, exist_ok=True)
