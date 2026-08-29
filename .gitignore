@@ -1,4 +1,9 @@
 .venv/
 __pycache__/
 *.pyc
-data/
+
+# Dataset: ignore everything under data/ except the ImageSets splits,
+# which are small, hand-curated config. Keeps *.pkl and gt_database/ out.
+data/**
+!data/**/
+!data/cadc/ImageSets/*.txt
